@@ -1,0 +1,507 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Paste‑Ready Reply Translator</title>
+<style>
+  :root {
+    --bg: #0f1115;
+    --panel: #151924;
+    --muted: #98a2b3;
+    --text: #e6e8ee;
+    --accent: #6ea8fe;
+    --ok: #22c55e;
+    --warn: #f59e0b;
+    --danger: #ef4444;
+    --border: #262b3a;
+  }
+  * { box-sizing: border-box; }
+  html, body { height: 100%; }
+  body {
+    margin: 0; background: var(--bg); color: var(--text); font: 14px/1.45 system-ui, -apple-system, Segoe UI, Roboto, Inter, "Helvetica Neue", Arial, "Noto Sans", "Apple Color Emoji","Segoe UI Emoji";
+  }
+  header {
+    padding: 18px 20px; border-bottom: 1px solid var(--border); position: sticky; top: 0; backdrop-filter: blur(6px); background: color-mix(in oklab, var(--bg) 80%, transparent);
+    display: flex; align-items: center; gap: 12px; justify-content: space-between;
+  }
+  header h1 { margin: 0; font-size: 16px; letter-spacing: .3px; }
+  header .actions { display: flex; gap: 8px; align-items: center; }
+  .container { max-width: 1100px; margin: 0 auto; padding: 16px; display: grid; gap: 16px; }
+  .grid { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+  @media (max-width: 900px) { .grid { grid-template-columns: 1fr; } }
+  .card {
+    background: var(--panel); border: 1px solid var(--border); border-radius: 14px; padding: 14px; display: flex; flex-direction: column; gap: 10px;
+    box-shadow: 0 0 0 1px rgba(255,255,255,0.02) inset, 0 8px 20px rgba(0,0,0,.25);
+  }
+  .card h2 { margin: 0 0 4px 0; font-size: 14px; color: #cbd5e1; font-weight: 600; display: flex; align-items: center; gap: 8px; }
+  .row { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+  textarea {
+    width: 100%; min-height: 140px; resize: vertical; border-radius: 10px; padding: 12px; background: #0f1422; color: var(--text);
+    border: 1px solid var(--border); outline: none; font: inherit;
+  }
+  .out {
+    border-radius: 10px; padding: 12px; background: #0d1220; border: 1px dashed var(--border); min-height: 100px; white-space: pre-wrap; word-wrap: break-word;
+  }
+  label { color: var(--muted); font-size: 12px; }
+  select, input[type="text"], input[type="password"], input[type="url"], input[type="number"] {
+    background: #0f1422; color: var(--text); border: 1px solid var(--border); border-radius: 10px; padding: 8px 10px; font: inherit; outline: none;
+  }
+  .pill {
+    font-size: 12px; padding: 3px 8px; border-radius: 999px; background: #0f1422; border: 1px solid var(--border); color: var(--muted);
+    display: inline-flex; gap: 6px; align-items: center;
+  }
+  .pill .dot { width: 8px; height: 8px; border-radius: 50%; background: var(--warn); }
+  .pill.ok .dot { background: var(--ok); }
+  .pill.bad .dot { background: var(--danger); }
+  .btn {
+    background: #11172a; color: #eaeefc; border: 1px solid var(--border); border-radius: 10px; padding: 10px 12px; font-weight: 600;
+    cursor: pointer; transition: transform .05s ease, background .2s ease;
+  }
+  .btn:hover { background: #121a30; }
+  .btn:active { transform: translateY(1px); }
+  .btn.primary { background: var(--accent); border-color: color-mix(in oklab, var(--accent) 70%, #000 30%); color: #0a1020; }
+  .btn.ghost { background: transparent; }
+  .btn.small { padding: 6px 8px; font-weight: 500; }
+  .muted { color: var(--muted); }
+  .kicker { font-size: 12px; color: var(--muted); }
+  .divider { height: 1px; background: var(--border); margin: 10px 0; }
+  .footer { text-align: center; color: var(--muted); font-size: 12px; padding: 10px; }
+  .stack { display: grid; gap: 8px; }
+  .flex-1 { flex: 1; }
+  .badge { padding: 2px 6px; border-radius: 6px; background: #0b1220; border: 1px solid var(--border); font-size: 11px; color: #cbd5e1; }
+  .settings-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+  @media (max-width: 700px){ .settings-grid { grid-template-columns: 1fr; } }
+  .tooltip { border-bottom: 1px dotted var(--muted); cursor: help; }
+</style>
+
+  <link rel="manifest" href="manifest.webmanifest">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta name="apple-mobile-web-app-title" content="Reply Translator">
+  <link rel="apple-touch-icon" href="icons/icon-192.png">
+  <meta name="theme-color" content="#0f1115">
+
+</head>
+<body>
+<header>
+  <h1>Paste‑Ready Reply Translator</h1>
+  <div class="actions">
+    <button class="btn small" id="swapBtn" title="Swap the two main panels">Swap</button>
+    <button class="btn small" id="clearBtn" title="Clear all fields">Clear</button>
+    <button class="btn small" id="settingsBtn" title="Provider & API settings">Settings</button>
+    <button class="btn primary" id="goBtn">Translate</button>
+  </div>
+</header>
+
+<div class="container">
+  <div class="grid">
+    <section class="card" id="incomingCard">
+      <h2>1) Incoming message <span id="detectedLang" class="pill"><span class="dot"></span><span>Detecting…</span></span></h2>
+      <textarea id="incoming" placeholder="Paste the message you received (WhatsApp / SMS / email)…"></textarea>
+      <div class="row">
+        <span class="kicker">Auto‑detected language → English (context)</span>
+        <span class="flex-1"></span>
+        <button class="btn small" id="copyIncoming">Copy original</button>
+      </div>
+      <div class="out" id="incomingToEnglish" placeholder=""></div>
+      <div class="row">
+        <span class="kicker muted">This is for context only — not to send.</span>
+        <span class="flex-1"></span>
+        <button class="btn small" id="copyIncomingEn">Copy English</button>
+      </div>
+    </section>
+
+    <section class="card" id="replyCard">
+      <h2>2) Your reply <span id="replyLang" class="pill"><span class="dot"></span><span>Detecting…</span></span></h2>
+      <textarea id="reply" placeholder="Type your reply in any language you’re comfortable with…"></textarea>
+      <div class="row">
+        <div class="row">
+          <label for="tone" class="muted">Style:</label>
+          <select id="tone">
+            <option value="plain" selected>Plain</option>
+            <option value="friendly">Friendly</option>
+            <option value="polite">Polite</option>
+            <option value="concise">Very concise</option>
+          </select>
+        </div>
+        <span class="flex-1"></span>
+        <button class="btn small" id="copyReply">Copy original</button>
+      </div>
+      <div class="divider"></div>
+      <div class="row">
+        <span class="kicker">Reply translated → original message language</span>
+        <span class="flex-1"></span>
+        <button class="btn small" id="copyFinal">Copy translated reply</button>
+      </div>
+      <div class="out" id="finalReply"></div>
+    </section>
+  </div>
+
+  <section class="card" id="settingsCard" style="display:none">
+    <h2>Settings</h2>
+    <div class="settings-grid">
+      <div class="stack">
+        <label>Translation provider</label>
+        <select id="provider">
+          <option value="libre" selected>LibreTranslate (no key; may rate limit)</option>
+          <option value="deepl">DeepL API</option>
+          <option value="google">Google Cloud Translate</option>
+          <option value="openai">OpenAI / GPT Translation</option>
+          <option value="custom">Custom HTTP (Libre-compatible)</option>
+        </select>
+      </div>
+      <div class="stack">
+        <label>Provider base URL <span class="tooltip" title="For LibreTranslate, use e.g. https://libretranslate.com">?</span></label>
+        <input type="url" id="baseUrl" placeholder="https://libretranslate.com">
+      </div>
+      <div class="stack">
+        <label>API key (if needed)</label>
+        <input type="password" id="apiKey" placeholder="Enter key (stored locally)">
+      </div>
+      <div class="stack">
+        <label>Default target for context (incoming → English)</label>
+        <select id="contextTarget">
+          <option value="en" selected>English</option>
+        </select>
+      </div>
+      <div class="stack">
+        <label>Force WhatsApp/SMS-safe quotes</label>
+        <select id="smartQuotes">
+          <option value="true" selected>Yes — use straight quotes</option>
+          <option value="false">No — leave as-is</option>
+        </select>
+      </div>
+    </div>
+    <div class="row" style="margin-top:10px">
+      <button class="btn small" id="saveSettings">Save</button>
+      <button class="btn small ghost" id="resetSettings">Reset</button>
+      <span class="flex-1"></span>
+      <span class="kicker muted">Settings are stored locally in your browser.</span>
+    </div>
+  </section>
+
+  <div class="footer">Tip: Paste the received message, hit Translate, then copy the ready‑to‑send reply. Supports Dutch, English, Brazilian Portuguese, and Romanian (and more).</div>
+</div>
+
+<!-- Language detection (tiny) -->
+<script src="https://unpkg.com/franc-min@6.2.0/min.js"></script>
+<script>
+(() => {
+  const $ = sel => document.querySelector(sel);
+  const $$ = sel => Array.from(document.querySelectorAll(sel));
+
+  const incoming = $("#incoming");
+  const reply = $("#reply");
+  const detectedLangBadge = $("#detectedLang");
+  const replyLangBadge = $("#replyLang");
+  const incomingToEnglish = $("#incomingToEnglish");
+  const finalReply = $("#finalReply");
+
+  const providerSel = $("#provider");
+  const baseUrlInput = $("#baseUrl");
+  const apiKeyInput = $("#apiKey");
+  const contextTargetSel = $("#contextTarget");
+  const smartQuotesSel = $("#smartQuotes");
+  const toneSel = $("#tone");
+
+  const settingsCard = $("#settingsCard");
+
+  const LANG_MAP = {
+    af:"Afrikaans", ar:"Arabic", bg:"Bulgarian", bn:"Bengali", ca:"Catalan",
+    cs:"Czech", da:"Danish", de:"German", el:"Greek",
+    en:"English", es:"Spanish", et:"Estonian", fa:"Persian",
+    fi:"Finnish", fr:"French", he:"Hebrew", hi:"Hindi",
+    hr:"Croatian", hu:"Hungarian", id:"Indonesian", it:"Italian",
+    ja:"Japanese", ko:"Korean", lt:"Lithuanian", lv:"Latvian",
+    nl:"Dutch", no:"Norwegian", pl:"Polish", pt:"Portuguese",
+    "pt-BR":"Portuguese (Brazil)", ro:"Romanian", ru:"Russian", sk:"Slovak",
+    sl:"Slovenian", sr:"Serbian", sv:"Swedish", th:"Thai",
+    tr:"Turkish", uk:"Ukrainian", ur:"Urdu", vi:"Vietnamese",
+    zh:"Chinese"
+  };
+
+  // Prefer Brazilian Portuguese when we detect "pt"
+  function normalizePt(tag) {
+    if (!tag) return tag;
+    return tag.toLowerCase() === "pt" ? "pt-BR" : tag;
+  }
+
+  function langName(code) {
+    return LANG_MAP[code] || code;
+  }
+
+  // Detect language with franc-min; return BCP-47-ish code
+  function detectLang(text) {
+    try {
+      const trimmed = (text || "").replace(/\s+/g, " ").trim();
+      if (!trimmed) return { code: "", name:"", score:0 };
+      const code2 = franc.min(trimmed); // ISO 639-3
+      if (code2 === 'und') return { code:"", name:"", score:0 };
+      // Map common 3->2 letter manually (subset for our languages)
+      const map = { nld:"nl", eng:"en", por:"pt", spa:"es", ron:"ro", deu:"de", fra:"fr", ita:"it", ell:"el", ara:"ar", rus:"ru", cmn:"zh" };
+      let code = map[code2] || "";
+      code = normalizePt(code);
+      return { code, name: langName(code), score: 1 };
+    } catch(e) {
+      return { code:"", name:"", score:0 };
+    }
+  }
+
+  function setBadge(el, code) {
+    const span = el.querySelector("span:last-child");
+    const dot = el.querySelector(".dot");
+    if (!code) {
+      el.classList.remove("ok"); el.classList.add("bad");
+      span.textContent = "Unknown";
+    } else {
+      el.classList.add("ok"); el.classList.remove("bad");
+      span.textContent = langName(code) + ` (${code})`;
+    }
+  }
+
+  function replaceSmartQuotes(str) {
+    if (!str) return str;
+    if (settings.smartQuotes === "false") return str;
+    return str
+      .replace(/[“”]/g, '"')
+      .replace(/[‘’]/g, "'");
+  }
+
+  function tidy(str) {
+    if (!str) return "";
+    // collapse space, trim, remove leading/trailing quotes/newlines
+    let s = str.replace(/\r/g, "").replace(/[ \t]+\n/g, "\n").replace(/\n{3,}/g, "\n\n");
+    s = s.trim();
+    s = replaceSmartQuotes(s);
+    return s;
+  }
+
+  function stylizeTone(str, tone) {
+    if (!str) return "";
+    if (tone === "plain") return str;
+    // Light touch prompts (client-side heuristic)
+    if (tone === "friendly") {
+      return str
+        .replace(/^(hi|hallo|ol[aá]|salut)/i, (m) => m) // keep if exists
+        .replace(/(\.)?$/, "."); // ensure period
+    }
+    if (tone === "polite") {
+      return str.replace(/!+/g, ".").replace(/\s{2,}/g, " ");
+    }
+    if (tone === "concise") {
+      // Trim to ~280 chars softly
+      if (str.length <= 280) return str;
+      return str.slice(0, 267).trim() + "…";
+    }
+    return str;
+  }
+
+  // SETTINGS
+  const DEFAULTS = {
+    provider: "libre",
+    baseUrl: "https://libretranslate.com",
+    apiKey: "",
+    contextTarget: "en",
+    smartQuotes: "true"
+  };
+  let settings = { ...DEFAULTS };
+
+  function loadSettings() {
+    try {
+      const raw = localStorage.getItem("replyTranslator.settings");
+      if (raw) settings = { ...settings, ...JSON.parse(raw) };
+    } catch {}
+    providerSel.value = settings.provider;
+    baseUrlInput.value = settings.baseUrl;
+    apiKeyInput.value = settings.apiKey;
+    contextTargetSel.value = settings.contextTarget;
+    smartQuotesSel.value = settings.smartQuotes;
+  }
+
+  function saveSettings() {
+    settings.provider = providerSel.value;
+    settings.baseUrl = baseUrlInput.value || DEFAULTS.baseUrl;
+    settings.apiKey = apiKeyInput.value || "";
+    settings.contextTarget = contextTargetSel.value || "en";
+    settings.smartQuotes = smartQuotesSel.value;
+    localStorage.setItem("replyTranslator.settings", JSON.stringify(settings));
+  }
+
+  // TRANSLATE: provider adapters (client-side only)
+  async function translate(text, from, to) {
+    const t = tidy(text);
+    if (!t) return "";
+    const provider = settings.provider;
+
+    if (provider === "libre" || provider === "custom") {
+      const endpoint = (settings.baseUrl || DEFAULTS.baseUrl).replace(/\/+$/,"") + "/translate";
+      const body = {
+        q: t,
+        source: from || "auto",
+        target: to || "en",
+        format: "text"
+      };
+      if (settings.apiKey) body.api_key = settings.apiKey;
+      const res = await fetch(endpoint, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(body)
+      });
+      if (!res.ok) throw new Error("LibreTranslate error: " + res.status);
+      const data = await res.json();
+      return tidy(data.translatedText || "");
+    }
+
+    if (provider === "deepl") {
+      // DeepL API v2
+      const url = "https://api-free.deepl.com/v2/translate";
+      const params = new URLSearchParams();
+      params.set("text", t);
+      if (from && from !== "auto") params.set("source_lang", from.toUpperCase());
+      params.set("target_lang", (to || "EN").toUpperCase());
+      const res = await fetch(url, {
+        method: "POST",
+        headers: { "Authorization": "DeepL-Auth-Key " + settings.apiKey, "Content-Type": "application/x-www-form-urlencoded" },
+        body: params.toString()
+      });
+      if (!res.ok) throw new Error("DeepL error: " + res.status);
+      const data = await res.json();
+      return tidy((data.translations && data.translations[0] && data.translations[0].text) || "");
+    }
+
+    if (provider === "google") {
+      // Google Cloud Translate v2 (simple)
+      const url = "https://translation.googleapis.com/language/translate/v2?key=" + encodeURIComponent(settings.apiKey);
+      const body = { q: t, target: (to || "en"), format: "text" };
+      if (from && from !== "auto") body.source = from;
+      const res = await fetch(url, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
+      if (!res.ok) throw new Error("Google Translate error: " + res.status);
+      const data = await res.json();
+      return tidy((data.data && data.data.translations && data.data.translations[0] && data.data.translations[0].translatedText) || "");
+    }
+
+    if (provider === "openai") {
+      // OpenAI: use a lightweight prompt for translation (gpt-4o-mini)
+      const url = "https://api.openai.com/v1/chat/completions";
+      const sys = "You translate text precisely into the target language. Output plain text only, no quotes.";
+      const content = `Translate this into ${to || "English"}.\n\nText:\n${t}`;
+      const res = await fetch(url, {
+        method: "POST",
+        headers: { "Content-Type": "application/json", "Authorization": "Bearer " + settings.apiKey },
+        body: JSON.stringify({
+          model: "gpt-4o-mini",
+          messages: [{ role: "system", content: sys }, { role: "user", content }],
+          temperature: 0.2
+        })
+      });
+      if (!res.ok) throw new Error("OpenAI error: " + res.status);
+      const data = await res.json();
+      return tidy(data.choices?.[0]?.message?.content || "");
+    }
+
+    throw new Error("Unknown provider");
+  }
+
+  // MAIN FLOW
+  function updateDetections() {
+    const d1 = detectLang(incoming.value);
+    const d2 = detectLang(reply.value);
+    setBadge(detectedLangBadge, d1.code);
+    setBadge(replyLangBadge, d2.code);
+  }
+
+  async function run() {
+    try {
+      $("#goBtn").disabled = true;
+      // 1) Detect incoming language; translate to English
+      const inDet = detectLang(incoming.value);
+      setBadge(detectedLangBadge, inDet.code);
+      const ctxTarget = settings.contextTarget || "en";
+      const incomingEn = await translate(incoming.value, inDet.code || "auto", ctxTarget);
+      incomingToEnglish.textContent = incomingEn || "";
+
+      // 2) Detect reply language; translate to original incoming language
+      const replyDet = detectLang(reply.value);
+      setBadge(replyLangBadge, replyDet.code);
+      const tone = toneSel.value;
+      const toned = stylizeTone(reply.value, tone);
+      const targetLang = inDet.code || "auto";
+      const final = await translate(toned, replyDet.code || "auto", targetLang);
+      finalReply.textContent = final || "";
+    } catch (e) {
+      alert(e.message || String(e));
+    } finally {
+      $("#goBtn").disabled = false;
+    }
+  }
+
+  // Copy helpers
+  function copyTextFrom(el) {
+    const text = (el.tagName === "TEXTAREA") ? el.value : el.textContent;
+    if (!text) return;
+    navigator.clipboard.writeText(text).then(() => {
+      const btn = document.activeElement;
+      if (btn && btn.classList.contains("btn")) {
+        const old = btn.textContent;
+        btn.textContent = "Copied";
+        setTimeout(() => btn.textContent = old, 900);
+      }
+    }).catch(() => {});
+  }
+
+  // UI wiring
+  $("#goBtn").addEventListener("click", run);
+  $("#copyIncoming").addEventListener("click", () => copyTextFrom(incoming));
+  $("#copyIncomingEn").addEventListener("click", () => copyTextFrom(incomingToEnglish));
+  $("#copyReply").addEventListener("click", () => copyTextFrom(reply));
+  $("#copyFinal").addEventListener("click", () => copyTextFrom(finalReply));
+  $("#clearBtn").addEventListener("click", () => {
+    incoming.value = "";
+    reply.value = "";
+    incomingToEnglish.textContent = "";
+    finalReply.textContent = "";
+    updateDetections();
+  });
+  $("#swapBtn").addEventListener("click", () => {
+    const a = incoming.value; incoming.value = reply.value; reply.value = a; updateDetections();
+  });
+  $("#settingsBtn").addEventListener("click", () => {
+    settingsCard.style.display = settingsCard.style.display === "none" ? "block" : "none";
+  });
+  $("#saveSettings").addEventListener("click", () => { saveSettings(); alert("Saved"); });
+  $("#resetSettings").addEventListener("click", () => { settings = { ...DEFAULTS }; saveSettings(); loadSettings(); alert("Reset"); });
+
+  incoming.addEventListener("input", updateDetections);
+  reply.addEventListener("input", updateDetections);
+
+  // Init
+  loadSettings();
+  updateDetections();
+})();
+</script>
+
+<script>
+  if ("serviceWorker" in navigator) {
+    window.addEventListener("load", () => {
+      navigator.serviceWorker.register("./service-worker.js").catch(console.error);
+    });
+  }
+  // iOS install tip: show a hint if not in standalone
+  (function() {
+    const isIos = /iphone|ipad|ipod/i.test(window.navigator.userAgent);
+    const isInStandalone = window.navigator.standalone === true;
+    if (isIos && !isInStandalone) {
+      const bar = document.createElement("div");
+      bar.style.position="fixed"; bar.style.bottom="10px"; bar.style.left="50%"; bar.style.transform="translateX(-50%)";
+      bar.style.background="#11172a"; bar.style.color="#e6e8ee"; bar.style.padding="8px 12px"; bar.style.border="1px solid #262b3a";
+      bar.style.borderRadius="12px"; bar.style.fontSize="12px"; bar.style.zIndex="9999";
+      bar.textContent = "Install: tap Share → 'Add to Home Screen' for app-like use.";
+      document.body.appendChild(bar);
+      setTimeout(() => bar.remove(), 8000);
+    }
+  })();
+</script>
+
+</body>
+</html>
