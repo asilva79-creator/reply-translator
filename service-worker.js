@@ -1,5 +1,5 @@
 
-const CACHE = "reply-translator-v1";
+const CACHE = "reply-translator-v2";
 const ASSETS = [
   "./",
   "./index.html",
@@ -17,25 +17,19 @@ self.addEventListener("install", event => {
 
 self.addEventListener("activate", event => {
   event.waitUntil(
-    caches.keys().then(keys => Promise.all(keys.filter(k => k !== CACHE).map(k => caches.delete(k))))  
+    caches.keys().then(keys => Promise.all(keys.filter(k => k !== CACHE).map(k => caches.delete(k))))
   );
   self.clients.claim();
 });
 
 self.addEventListener("fetch", event => {
   const req = event.request;
-  // Network-first for API calls; cache-first for everything else
-  if (req.url.includes("/translate") || req.url.includes("deepl.com") || req.url.includes("translation.googleapis.com") || req.url.includes("/v1/chat/completions")) {
-    event.respondWith(
-      fetch(req).catch(() => caches.match(req))
-    );
+  if (req.url.includes("/translate") || req.url.includes("/detect") || req.url.includes("deepl.com") || req.url.includes("translation.googleapis.com") || req.url.includes("/v1/chat/completions")) {
+    event.respondWith(fetch(req).catch(() => caches.match(req)));
   } else {
     event.respondWith(
       caches.match(req).then(cached => cached || fetch(req).then(res => {
-        // Optionally cache new resources
-        const copy = res.clone();
-        caches.open(CACHE).then(cache => cache.put(req, copy));
-        return res;
+        const copy = res.clone(); caches.open(CACHE).then(c => c.put(req, copy)); return res;
       }).catch(() => cached))
     );
   }

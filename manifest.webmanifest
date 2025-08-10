@@ -1,7 +1,7 @@
 {
   "name": "Reply Translator",
   "short_name": "ReplyTranslator",
-  "description": "Paste-ready reply translator for WhatsApp/SMS. Detect, context to English, reply back in original language.",
+  "description": "Paste-ready reply translator for WhatsApp/SMS.",
   "start_url": "./index.html",
   "display": "standalone",
   "background_color": "#0f1115",
